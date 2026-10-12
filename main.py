@@ -2,7 +2,6 @@ import asyncio
 
 from pydantic_ai import Agent
 
-
 agent = Agent(
     "openai:gpt-4.1-mini",
     system_prompt=(
@@ -14,8 +13,7 @@ agent = Agent(
 
 async def main():
     result = await agent.run(
-        "Explain the difference between an AI agent "
-        "and a traditional Python function."
+        "Explain the difference between an AI agent and a traditional Python function."
     )
 
     print(result.output)
