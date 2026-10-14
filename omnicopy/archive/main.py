@@ -12,6 +12,25 @@ This application currently handles six different responsibilitities:
 
 All of these responsibilities are handled in a single file, which is not ideal for maintainability and scalability.
 In a production application, it would be better to separate these concerns into different modules or packages.
+
+main.py
+│
+├── Campaign                  ← Database model
+├── CampaignCreate            ← Input schema
+├── CampaignUpdate            ← Input schema
+│
+├── Database engine
+├── Database session
+├── Application startup
+│
+├── FastAPI application
+│
+└── API endpoints
+    ├── GET /campaigns
+    ├── GET /campaigns/{id}
+    ├── POST /campaigns
+    ├── PUT /campaigns/{id}
+    └── DELETE /campaigns/{id}
 """
 
 from datetime import datetime, timezone

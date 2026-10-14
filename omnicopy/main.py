@@ -1,19 +1,52 @@
-from datetime import date, datetime, timezone
+"""
+This is a simple FastAPI application that manages marketing campaigns.
+It uses SQLModel for database interactions and provides endpoints to create, read, update, and delete marketing campaign records.
+
+This application currently handles six different responsibilitities:
+1. Application initialization: Sets up the FastAPI application with a root path and lifespan event for database initialization.
+2. Database configuration: Configures an SQLite database and creates the necessary tables using SQLModel.
+3. Database models: Defines the `Campaign` model and its associated Pydantic schemas for creating and updating campaigns.
+4. Data validation: Defines CampaignCreate and CampaignUpdate Pydantic models for validating incoming request data.
+5. Business Operations: Creates, retrieves, updates, and deletes campaign records in the database.
+6. API routing: Exposes endpoints
+
+All of these responsibilities are handled in a single file, which is not ideal for maintainability and scalability.
+In a production application, it would be better to separate these concerns into different modules or packages.
+"""
+
+# IMPORTS
+from datetime import datetime, timezone
 from typing import Annotated, Generic, TypeVar
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import asynccontextmanager
 from pydantic import BaseModel
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from omnicopy.models.campaign import Campaign
 
 
-class Campaign(SQLModel, table=True):
-    campaign_id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    due_date: datetime | None = Field(default=None, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), nullable=True, index=True
-    )
+# LAYER 2: Pydantic Models
+"""
+These define the shape of information entering and leaving your application.
+Why separate these from your database model? Because your database and API have different responsibilities.
+For example, your database might contain:
+    campaign_id
+    name
+    due_date
+    created_at
+    internal_status
+But when someone creates a campaign through your API, you might only allow:
+    name
+    due_date
+
+The client shouldn't necessarily be able to modify every database field.
+
+Key concept: Schemas define the contract between your application and its users.
+"""
+
+from datetime import datetime
+from pydantic import BaseModel
 
 
 class CampaignCreate(SQLModel):
@@ -26,7 +59,18 @@ class CampaignUpdate(SQLModel):
     due_date: datetime | None = None
 
 
-# Set up database
+# LAYER 3: Database Configuration and Session Management
+"""
+File: omnicopy/db/database.py
+This file manages the database connection and sessions.
+
+One subtle detail: 
+SQLModel must import the table models before create_all() executes, or their tables may not be registered in its metadata.
+
+Key concept: Database configuration should not be scattered throughout your application.
+"""
+from sqlmodel import SQLModel, Session, create_engine, select
+
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
@@ -54,8 +98,14 @@ async def lifespan(app: FastAPI):
         if not session.exec(select(Campaign)).first():
             session.add_all(
                 [
-                    Campaign(name="Summer Launch", due_date=date(2024, 4, 30)),
-                    Campaign(name="Back to School", due_date=date(2024, 7, 15)),
+                    Campaign(
+                        name="Summer Launch",
+                        due_date=datetime(2024, 4, 30, tzinfo=timezone.utc),
+                    ),
+                    Campaign(
+                        name="Back to School",
+                        due_date=datetime(2024, 7, 15, tzinfo=timezone.utc),
+                    ),
                 ]
             )
             session.commit()
