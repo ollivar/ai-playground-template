@@ -85,6 +85,15 @@ Phase 4: Extract API Routes Using APIRouter
                 ├── users.py
                 │
                 └── reports.py
+
+Phase 5 — Extract Business Logic into Services
+    We'll create: omnicopy/services/campaign.py
+
+    And learn how to separate:
+        Router: What does the client want?
+        Service: How do we fulfill the request?
+        Model: How is the data represented and stored?
+
 """
 
 # IMPORTS

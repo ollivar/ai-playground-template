@@ -66,14 +66,20 @@ async def read_campaign(campaign_id: int, session: SessionDep):
 
 
 # Create a new campaign:
-@router.post("", status_code=201, response_model=Response[Campaign])
-async def create_campaign(campaign: CampaignCreate, session: SessionDep):
-    db_campaign = Campaign.model_validate(campaign)
+@router.post(
+    "", status_code=201, response_model=Response[Campaign]
+)  # defines an HTTP Endpoint
+async def create_campaign(
+    campaign: CampaignCreate,  # Receives validated request data
+    session: SessionDep,  # Obtains a database session from the dependency injection system.
+):
 
-    session.add(db_campaign)
-    session.commit()
-    session.refresh(db_campaign)
-    return Response(data=db_campaign)
+    db_campaign = Campaign.model_validate(campaign)  # Constructs a database model
+
+    session.add(db_campaign)  # Stages a database insertion
+    session.commit()  # Commits the transaction to the database
+    session.refresh(db_campaign)  # Reloads the saved object
+    return Response(data=db_campaign)  # Formats the API response
 
 
 # Update an existing campaign:
