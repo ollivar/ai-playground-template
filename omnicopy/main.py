@@ -41,19 +41,15 @@ Phase 3: Let's create a module for the database configuration and session manage
 
 # IMPORTS
 from datetime import datetime, timezone
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, select
 
-from omnicopy.db.database import create_db_and_tables, engine, get_session
+from omnicopy.db.database import SessionDep, create_db_and_tables, engine
 from omnicopy.models.campaign import Campaign
 from omnicopy.schemas.campaign import CampaignCreate, CampaignUpdate
 from omnicopy.schemas.responses import Response
-
-# Tells FastAPI how to inject a session into an endpoint function. This is a type alias for convenience.
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 # create db on startup (everything after yield runs after startup):

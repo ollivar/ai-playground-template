@@ -13,6 +13,9 @@ Code that manages database infrastructure should be independent of the business 
 
 from sqlmodel import Session, SQLModel, create_engine
 
+from typing import Annotated
+from fastapi import Depends
+
 # Define the SQLite database URL and engine - how SQLAlchemy connects to the db
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -30,3 +33,7 @@ def create_db_and_tables():
 def get_session():
     with Session(engine) as session:
         yield session
+
+
+# Tells FastAPI how to inject a session into an endpoint function. This is a type alias for convenience.
+SessionDep = Annotated[Session, Depends(get_session)]
