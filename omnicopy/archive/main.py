@@ -14,7 +14,7 @@ All of these responsibilities are handled in a single file, which is not ideal f
 In a production application, it would be better to separate these concerns into different modules or packages.
 """
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Annotated, Generic, TypeVar
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -70,8 +70,14 @@ async def lifespan(app: FastAPI):
         if not session.exec(select(Campaign)).first():
             session.add_all(
                 [
-                    Campaign(name="Summer Launch", due_date=date(2024, 4, 30)),
-                    Campaign(name="Back to School", due_date=date(2024, 7, 15)),
+                    Campaign(
+                        name="Summer Launch",
+                        due_date=datetime(2024, 4, 30, tzinfo=timezone.utc),
+                    ),
+                    Campaign(
+                        name="Back to School",
+                        due_date=datetime(2024, 7, 15, tzinfo=timezone.utc),
+                    ),
                 ]
             )
             session.commit()
