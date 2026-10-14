@@ -37,19 +37,66 @@ Phase 3: Let's create a module for the database configuration and session manage
             ├── Creates database tables
             └── Provides database sessions
 
+Phase 4: Extract API Routes Using APIRouter
+    This is one of the most important steps in modularizing a FastAPI application.
+    Our objective: Move all HTTP endpoints out of main.py and into a dedicated module (api/routes.py) that uses FastAPI's APIRouter.
+         - We are not going to change the database models, schemas, or business logic yet.
+    Imagine your application grows to include:
+        Campaigns
+        Users
+        Projects
+        Tasks
+        Reports
+
+    You could easily end up with 50–100 endpoints in main.py! That's difficult to maintain.
+    FastAPI solves this using APIRouter.
+    New architecture:
+    omnicopy/
+    │
+    ├── api/
+    │   ├── __init__.py
+    │   └── campaigns.py
+    │
+    ├── db/
+    │   ├── __init__.py
+    │   └── database.py
+    │
+    ├── models/
+    │   └── campaign.py
+    │
+    ├── schemas/
+    │   ├── campaign.py
+    │   └── responses.py
+    │
+    ├── services/
+    │
+    └── main.py
+        │
+        ├── FastAPI()
+        │
+        └── include_router()
+                │
+                ├── campaigns.py
+                │    ├── GET    /campaigns
+                │    ├── POST   /campaigns
+                │    ├── PUT    /campaigns/{id}
+                │    └── DELETE /campaigns/{id}
+                │
+                ├── users.py
+                │
+                └── reports.py
 """
 
 # IMPORTS
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
-from fastapi.concurrency import asynccontextmanager
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from sqlmodel import Session, select
 
-from omnicopy.db.database import SessionDep, create_db_and_tables, engine
+from omnicopy.api.campaigns import router as campaigns_router
+from omnicopy.db.database import create_db_and_tables, engine
 from omnicopy.models.campaign import Campaign
-from omnicopy.schemas.campaign import CampaignCreate, CampaignUpdate
-from omnicopy.schemas.responses import Response
 
 
 # create db on startup (everything after yield runs after startup):
@@ -76,65 +123,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(root_path="/api/v1", lifespan=lifespan)
 
+# Tell FastAPI to register all endpoints defined in this router as part of this application.
+app.include_router(campaigns_router)
+
 
 # create a fxn to associate with a path
 @app.get("/")
 async def root():
     return {"message": "Yo World"}
-
-
-# Return a list of campaigns:
-@app.get("/campaigns", response_model=Response[list[Campaign]])
-async def read_campaigns(session: SessionDep):
-    campaigns = session.exec(select(Campaign)).all()
-    return Response(data=campaigns)
-
-
-# Return a single campaign by ID:
-@app.get("/campaigns/{campaign_id}", response_model=Response[Campaign])
-async def read_campaign(campaign_id: int, session: SessionDep):
-    campaign = session.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    return Response(data=campaign)
-
-
-# Create a new campaign:
-@app.post("/campaigns", status_code=201, response_model=Response[Campaign])
-async def create_campaign(campaign: CampaignCreate, session: SessionDep):
-    db_campaign = Campaign.model_validate(campaign)
-    session.add(db_campaign)
-    session.commit()
-    session.refresh(db_campaign)
-    return {"data": db_campaign}
-
-
-# Update an existing campaign:
-@app.put("/campaigns/{campaign_id}", response_model=Response[Campaign])
-async def update_campaign(
-    campaign_id: int, campaign: CampaignUpdate, session: SessionDep
-):
-    data = session.get(Campaign, campaign_id)
-
-    if not data:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    # data.name = campaign.name
-    # data.due_date = campaign.due_date
-    updates = campaign.model_dump(exclude_unset=True)
-    data.sqlmodel_update(updates)
-    session.add(data)
-    session.commit()
-    session.refresh(data)
-    return Response(data=data)
-
-
-# Delete a campaign:
-@app.delete("/campaigns/{campaign_id}", status_code=204)
-async def delete_campaign(campaign_id: int, session: SessionDep):
-    data = session.get(Campaign, campaign_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    session.delete(data)
-    session.commit()
-    return
