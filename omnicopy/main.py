@@ -19,7 +19,23 @@ Phase 2: Let's create a module for the Pydantic models and move the CampaignCrea
     We will use:
         schemas/campaign.py for campaign-specific API schemas.
         schemas/responses.py for reusable API response schemas.
-
+Phase 3: Let's create a module for the database configuration and session management. This will be super helpful if we switch to Postgres!
+    Current implementation:
+    main.py
+    │
+    ├── Creates FastAPI application
+    ├── Defines API endpoints
+    ├── Performs CRUD operations
+    │
+    └── Imports database functionality
+            │
+            ▼
+    db/database.py
+            │
+            ├── Configures SQLite
+            ├── Creates database engine
+            ├── Creates database tables
+            └── Provides database sessions
 
 """
 
@@ -29,42 +45,12 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import asynccontextmanager
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, select
 
+from omnicopy.db.database import create_db_and_tables, engine, get_session
 from omnicopy.models.campaign import Campaign
 from omnicopy.schemas.campaign import CampaignCreate, CampaignUpdate
 from omnicopy.schemas.responses import Response
-
-
-# LAYER 3: Database Configuration and Session Management
-"""
-File: omnicopy/db/database.py
-This file manages the database connection and sessions.
-
-One subtle detail: 
-SQLModel must import the table models before create_all() executes, or their tables may not be registered in its metadata.
-
-Key concept: Database configuration should not be scattered throughout your application.
-Code that manages database infrastructure should be independent of the business entities that use it.
-"""
-# Define the SQLite database URL and engine - how SQLAlchemy connects to the db
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
-
-connect_args = {"check_same_thread": False}  # only needed for SQLite
-engine = create_engine(sqlite_url, connect_args=connect_args)  # manage db connectivity
-
-
-# Create db tables if don't exist
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-
-# Provide a db session
-def get_session():
-    with Session(engine) as session:
-        yield session
-
 
 # Tells FastAPI how to inject a session into an endpoint function. This is a type alias for convenience.
 SessionDep = Annotated[Session, Depends(get_session)]
