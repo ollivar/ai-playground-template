@@ -94,6 +94,36 @@ Phase 5 — Extract Business Logic into Services
         Service: How do we fulfill the request?
         Model: How is the data represented and stored?
 
+    We previously mixed HTTP concerns with db operations in api/campaigns.py. This is not ideal for maintainability and scalability.
+    We want to separate the responsibilities:
+                      HTTP REQUEST
+                       │
+                       ▼
+             ┌───────────────────┐
+             │       ROUTER      │
+             │                   │
+             │ Receives request  │
+             │ Returns response  │
+             └─────────┬─────────┘
+                       │
+                       ▼
+             ┌───────────────────┐
+             │      SERVICE      │
+             │                   │
+             │ Implements the    │
+             │ operation         │
+             └─────────┬─────────┘
+                       │
+                       ▼
+             ┌───────────────────┐
+             │      DATABASE     │
+             │                   │
+             │ SQLModel Session  │
+             └───────────────────┘
+    The router shouldn't need to know the details of inserting a campaign into the database. Instead, it should be able to say:
+
+    "Create this campaign using the supplied data and database session."
+    The service handles the operation.
 """
 
 # IMPORTS

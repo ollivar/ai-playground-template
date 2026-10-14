@@ -36,6 +36,8 @@ from omnicopy.db.database import SessionDep
 from omnicopy.models.campaign import Campaign
 from omnicopy.schemas.campaign import CampaignCreate, CampaignUpdate
 from omnicopy.schemas.responses import Response
+from omnicopy.services import campaign as campaign_service
+
 
 # Define a router for the campaigns endpoints.
 # This allows us to group all the endpoints related to campaigns together, and also allows us to include this router in the main FastAPI application.
@@ -49,15 +51,16 @@ router = APIRouter(
 # Define a GET endpoint to retrieve all campaigns.
 @router.get("", response_model=Response[list[Campaign]])
 async def read_campaigns(session: SessionDep):
-    """Retrieve all campaigns from the database."""
-    campaigns = session.exec(select(Campaign)).all()
+    """Retrieve all campaigns from the database, using the service."""
+    # campaigns = session.exec(select(Campaign)).all()
+    campaigns = campaign_service.get_all_campaigns(session)
     return Response(data=campaigns, message="Campaigns retrieved successfully.")
 
 
 # Return a single campaign by ID:
 @router.get("/{campaign_id}", response_model=Response[Campaign])
 async def read_campaign(campaign_id: int, session: SessionDep):
-    campaign = session.get(Campaign, campaign_id)
+    campaign = campaign_service.get_campaign_by_id(session, campaign_id)
 
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -74,11 +77,10 @@ async def create_campaign(
     session: SessionDep,  # Obtains a database session from the dependency injection system.
 ):
 
-    db_campaign = Campaign.model_validate(campaign)  # Constructs a database model
+    db_campaign = campaign_service.create_campaign(
+        session, campaign
+    )  # Calls the service to create a new campaign in the database.
 
-    session.add(db_campaign)  # Stages a database insertion
-    session.commit()  # Commits the transaction to the database
-    session.refresh(db_campaign)  # Reloads the saved object
     return Response(data=db_campaign)  # Formats the API response
 
 
@@ -87,28 +89,19 @@ async def create_campaign(
 async def update_campaign(
     campaign_id: int, campaign: CampaignUpdate, session: SessionDep
 ):
-    db_campaign = session.get(Campaign, campaign_id)
+    db_campaign = campaign_service.update_campaign(session, campaign_id, campaign)
 
     if not db_campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    # db_campaign.name = campaign.name
-    # db_campaign.due_date = campaign.due_date
-    updates = campaign.model_dump(exclude_unset=True)
-    db_campaign.sqlmodel_update(updates)
-    session.add(db_campaign)
-    session.commit()
-    session.refresh(db_campaign)
     return Response(data=db_campaign)
 
 
 # Delete a campaign:
 @router.delete("/{campaign_id}", status_code=204)
 async def delete_campaign(campaign_id: int, session: SessionDep):
-    db_campaign = session.get(Campaign, campaign_id)
 
-    if not db_campaign:
+    deleted = campaign_service.delete_campaign(session, campaign_id)
+
+    if not deleted:
         raise HTTPException(status_code=404, detail="Campaign not found")
-
-    session.delete(db_campaign)
-    session.commit()
