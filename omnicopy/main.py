@@ -124,6 +124,23 @@ Phase 5 — Extract Business Logic into Services
 
     "Create this campaign using the supplied data and database session."
     The service handles the operation.
+
+Phase 6: Simplify main.py
+    The main.py file should be as simple as possible. It should only contain the following:
+    - FastAPI application initialization
+    - Lifespan event for database initialization
+
+There are actually three distinct operations happening during startup.
+    Operation	        Purpose	                            Responsibility
+Create database tables	Ensure database tables exist	Database infrastructure
+Seed sample data	Populate an empty database	        Data initialization
+Start FastAPI	Make the application available	        Application lifecycle
+
+Let's move the first two operations into a separate module, omnicopy/db/init_db.py. This will make it easier to switch to a different database in the future.
+    omnicopy/db/database.py manages the engine and sessions.
+    omnicopy/db/init_db.py manages initial database content.
+
+Then simplify lifespan function.
 """
 
 # IMPORTS
@@ -131,32 +148,18 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from sqlmodel import Session, select
 
 from omnicopy.api.campaigns import router as campaigns_router
-from omnicopy.db.database import create_db_and_tables, engine
-from omnicopy.models.campaign import Campaign
+from omnicopy.db.database import create_db_and_tables
+from omnicopy.db.init_db import seed_database
 
 
 # create db on startup (everything after yield runs after startup):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
-    with Session(engine) as session:
-        if not session.exec(select(Campaign)).first():
-            session.add_all(
-                [
-                    Campaign(
-                        name="Summer Launch",
-                        due_date=datetime(2024, 4, 30, tzinfo=timezone.utc),
-                    ),
-                    Campaign(
-                        name="Back to School",
-                        due_date=datetime(2024, 7, 15, tzinfo=timezone.utc),
-                    ),
-                ]
-            )
-            session.commit()
+    seed_database()
+
     yield
 
 
@@ -169,4 +172,4 @@ app.include_router(campaigns_router)
 # create a fxn to associate with a path
 @app.get("/")
 async def root():
-    return {"message": "Yo World"}
+    return {"message": "I love the World"}
