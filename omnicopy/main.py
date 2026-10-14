@@ -12,51 +12,28 @@ This application currently handles six different responsibilitities:
 
 All of these responsibilities are handled in a single file, which is not ideal for maintainability and scalability.
 In a production application, it would be better to separate these concerns into different modules or packages.
+Phase 1: Let's create a module for the database models and move the Campaign class there. This will help us keep our code organized and make it easier to manage as our application grows.
+Phase 2: Let's create a module for the Pydantic models and move the CampaignCreate and CampaignUpdate classes there.
+    Let's separate out the API schemas:
+    Key principle: Your database structure and your API contract should be able to evolve independently.
+    We will use:
+        schemas/campaign.py for campaign-specific API schemas.
+        schemas/responses.py for reusable API response schemas.
+
+
 """
 
 # IMPORTS
 from datetime import datetime, timezone
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import asynccontextmanager
-from pydantic import BaseModel
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from omnicopy.models.campaign import Campaign
-
-
-# LAYER 2: Pydantic Models
-"""
-These define the shape of information entering and leaving your application.
-Why separate these from your database model? Because your database and API have different responsibilities.
-For example, your database might contain:
-    campaign_id
-    name
-    due_date
-    created_at
-    internal_status
-But when someone creates a campaign through your API, you might only allow:
-    name
-    due_date
-
-The client shouldn't necessarily be able to modify every database field.
-
-Key concept: Schemas define the contract between your application and its users.
-"""
-
-from datetime import datetime
-from pydantic import BaseModel
-
-
-class CampaignCreate(SQLModel):
-    name: str
-    due_date: datetime | None = None
-
-
-class CampaignUpdate(SQLModel):
-    name: str | None = None
-    due_date: datetime | None = None
+from omnicopy.schemas.campaign import CampaignCreate, CampaignUpdate
+from omnicopy.schemas.responses import Response
 
 
 # LAYER 3: Database Configuration and Session Management
@@ -68,25 +45,28 @@ One subtle detail:
 SQLModel must import the table models before create_all() executes, or their tables may not be registered in its metadata.
 
 Key concept: Database configuration should not be scattered throughout your application.
+Code that manages database infrastructure should be independent of the business entities that use it.
 """
-from sqlmodel import SQLModel, Session, create_engine, select
-
+# Define the SQLite database URL and engine - how SQLAlchemy connects to the db
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}  # only needed for SQLite
-engine = create_engine(sqlite_url, connect_args=connect_args)
+engine = create_engine(sqlite_url, connect_args=connect_args)  # manage db connectivity
 
 
+# Create db tables if don't exist
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 
+# Provide a db session
 def get_session():
     with Session(engine) as session:
         yield session
 
 
+# Tells FastAPI how to inject a session into an endpoint function. This is a type alias for convenience.
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
@@ -121,13 +101,6 @@ async def root():
     return {"message": "Yo World"}
 
 
-T = TypeVar("T")
-
-
-class Response(BaseModel, Generic[T]):
-    data: T
-
-
 # Return a list of campaigns:
 @app.get("/campaigns", response_model=Response[list[Campaign]])
 async def read_campaigns(session: SessionDep):
@@ -160,14 +133,18 @@ async def update_campaign(
     campaign_id: int, campaign: CampaignUpdate, session: SessionDep
 ):
     data = session.get(Campaign, campaign_id)
+
     if not data:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    data.name = campaign.name
-    data.due_date = campaign.due_date
+
+    # data.name = campaign.name
+    # data.due_date = campaign.due_date
+    updates = campaign.model_dump(exclude_unset=True)
+    data.sqlmodel_update(updates)
     session.add(data)
     session.commit()
     session.refresh(data)
-    return {"data": data}
+    return Response(data=data)
 
 
 # Delete a campaign:
