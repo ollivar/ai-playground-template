@@ -30,6 +30,6 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 if __name__ == "__main__":
     edit_file(
         path="test.txt",
-        old_text="Hello world!",
-        new_text="Hello world! How are you?",
+        old_text="Hello",
+        new_text="Bonjour",
     )

@@ -1,31 +1,48 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "anthropic", # type: ignore
+#     "openai",
 #     "pydantic",
 # ]
 # ///
 
+"""
+NOW we will implement python logic to implement the tools! Bring the coding agent to life.
+"""
+
 import os
 import sys
-from typing import List, Dict, Any
-from anthropic import Anthropic
+from typing import Any
+
+from openai import OpenAI
 from pydantic import BaseModel
 
 
+# Specify the model for our tools (a standardized way to define the interface for tools that the AI Agent can use)
 class Tool(BaseModel):
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
 
 
+# Specify the AI Agent class - include internal function to set up the tools we want.
 class AIAgent:
     def __init__(self, api_key: str):
-        self.client = Anthropic(api_key=api_key)
-        self.messages: List[Dict[str, Any]] = []
-        self.tools: List[Tool] = []
+        self.client = OpenAI(api_key=api_key)
+        self.messages: list[dict[str, Any]] = []
+        self.tools: list[Tool] = []
         self._setup_tools()
         print(f"Agent initialized with {len(self.tools)} tools")
+
+    """
+    # Internal function to set up the tools we want the AI Agent to have access to:
+    --------------------------------------------------------------------------------
+    We are keeping this very basic. What are the minimal things a coding agent needs to do? 
+    At a basic level, we give the coding agent the following 3 tools: 
+        read_file
+        list_files
+        edit_file
+    """
 
     def _setup_tools(self):
         self.tools = [
@@ -81,7 +98,11 @@ class AIAgent:
             ),
         ]
 
-    def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
+    """
+    execute function: Take the output of the agent and loop through it, checking for various conditions. 
+    """
+
+    def _execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         try:
             if tool_name == "read_file":
                 return self._read_file(tool_input["path"])
@@ -158,16 +179,16 @@ class AIAgent:
 
 
 if __name__ == "__main__":
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        print("Error: ANTHROPIC_API_KEY not set")
+        print("Error: OPENAI_API_KEY not set")
         sys.exit(1)
     agent = AIAgent(api_key)
-    # Test the tools
+    # Test the tools (we are calling the function directly (not using the agent yet))
     print(agent._list_files("."))
 
 # ```bash
-# export ANTHROPIC_API_KEY="your-api
+# export OPENAI_API_KEY="your-api
 # uv run runbook/04_implement_tool_execution.py
 # ```
 # Should print:

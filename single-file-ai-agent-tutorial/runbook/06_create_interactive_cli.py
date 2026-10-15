@@ -1,42 +1,76 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "anthropic", # type: ignore
+#     "openai",
 #     "pydantic",
 # ]
 # ///
 
+"""
+A simple AI agent using OpenAI.
+
+The agent can:
+- Read files
+- List files and directories
+- Edit or create files
+
+Uses OpenAI function calling to execute tools.
+"""
+
+import json
 import os
 import sys
 import argparse  # NEW
-import logging
-from typing import List, Dict, Any
-from anthropic import Anthropic
+import logging  # NEW
+from typing import Any
+
+from openai import OpenAI
 from pydantic import BaseModel
 
-# Set up logging
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(message)s",
-    handlers=[logging.FileHandler("agent.log")],
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    handlers=[
+        logging.FileHandler("agent.log", encoding="utf-8"),
+    ],
+    force=True,
 )
 
-# Suppress verbose HTTP logs
+# Suppress HTTP request logging
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# Create an application-specific logger
+logger = logging.getLogger("AIAgent")
 
 
 class Tool(BaseModel):
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
 
 
 class AIAgent:
     def __init__(self, api_key: str):
-        self.client = Anthropic(api_key=api_key)
-        self.messages: List[Dict[str, Any]] = []
-        self.tools: List[Tool] = []
+        self.client = OpenAI(api_key=api_key)
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
+        self.messages: list[dict[str, Any]] = [
+            {
+                "role": "developer",
+                "content": (
+                    "You are a helpful coding assistant operating in a terminal environment. "
+                    "Output only plain text without markdown formatting, as your responses "
+                    "appear directly in the terminal. "
+                    "Be thorough, providing clear and practical advice. "
+                    "Use a friendly tone. "
+                    "Format the responses that have more than one answer with asterisks as bullets."
+                ),
+            }
+        ]
+        self.tools: list[Tool] = []
+        self.max_tool_rounds = 5
         self._setup_tools()
 
     def _setup_tools(self):
@@ -57,7 +91,11 @@ class AIAgent:
             ),
             Tool(
                 name="list_files",
-                description="List all files and directories in the specified path",
+                description=(
+                    "List files and directories. "
+                    "Use path='.' for the current working directory. "
+                    "If no path is provided, use the current directory."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -93,7 +131,7 @@ class AIAgent:
             ),
         ]
 
-    def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
+    def _execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         try:
             if tool_name == "read_file":
                 return self._read_file(tool_input["path"])
@@ -169,79 +207,115 @@ class AIAgent:
             return f"Error editing file: {str(e)}"
 
     def chat(self, user_input: str) -> str:
+
+        logger.info("USER: %s", user_input)
+
         self.messages.append({"role": "user", "content": user_input})
 
+        logger.info("Conversation contains %d messages", len(self.messages))
+
+        # Convert our Tool objects into OpenAI function definitions.
         tool_schemas = [
             {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.input_schema,
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.input_schema,
+                },
             }
             for tool in self.tools
         ]
 
-        while True:
+        for _ in range(self.max_tool_rounds + 1):
             try:
-                response = self.client.messages.create(
-                    model="claude-sonnet-4-5-20250929",
-                    max_tokens=4096,
+                response = self.client.chat.completions.create(
+                    model=self.model,
                     messages=self.messages,
                     tools=tool_schemas,
+                    tool_choice="auto",
+                    max_completion_tokens=1000,
                 )
 
-                assistant_message = {"role": "assistant", "content": []}
+                # Print token usage for monitoring.
+                if response.usage:
+                    logger.info(
+                        "TOKEN USAGE - Input: %d, Output: %d, Total: %d",
+                        response.usage.prompt_tokens,
+                        response.usage.completion_tokens,
+                        response.usage.total_tokens,
+                    )
+                assistant_message = response.choices[0].message
 
-                for content in response.content:
-                    if content.type == "text":
-                        assistant_message["content"].append(
-                            {"type": "text", "text": content.text}
+                logger.info("ASSISTANT RESPONSE: %s", assistant_message.content)
+
+                # Store the assistant response in conversation history.
+                self.messages.append(assistant_message.model_dump(exclude_none=True))
+
+                # Check whether the model requested any tools.
+                if not assistant_message.tool_calls:
+                    return assistant_message.content or ""
+
+                # Stop before executing more tools if we've
+                # reached our configured limit.
+                if _ >= self.max_tool_rounds:
+                    return "Agent stopped: maximum tool rounds reached."
+
+                # Execute each requested tool.
+                for tool_call in assistant_message.tool_calls:
+                    tool_name = tool_call.function.name
+
+                    print(f"[Tool] Executing: {tool_name}")
+
+                    try:
+                        tool_input = json.loads(tool_call.function.arguments)
+
+                        if not isinstance(tool_input, dict):
+                            raise ValueError("Tool arguments must be an object")
+
+                        logger.info("TOOL CALL: %s", tool_name)
+                        logger.info("TOOL ARGUMENTS: %s", tool_input)
+
+                        result = self._execute_tool(
+                            tool_name,
+                            tool_input,
                         )
-                    elif content.type == "tool_use":
-                        assistant_message["content"].append(
-                            {
-                                "type": "tool_use",
-                                "id": content.id,
-                                "name": content.name,
-                                "input": content.input,
-                            }
-                        )
 
-                self.messages.append(assistant_message)
+                        logger.info("TOOL RESULT: %s", result)
 
-                tool_results = []
-                for content in response.content:
-                    if content.type == "tool_use":
-                        result = self._execute_tool(content.name, content.input)
-                        tool_results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": content.id,
-                                "content": result,
-                            }
-                        )
+                    except (json.JSONDecodeError, ValueError) as e:
+                        result = f"Invalid tool arguments: {e}"
 
-                if tool_results:
-                    self.messages.append({"role": "user", "content": tool_results})
-                else:
-                    return response.content[0].text if response.content else ""
+                    # Return the result to OpenAI.
+                    self.messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": result,
+                        }
+                    )
 
             except Exception as e:
+                logger.exception("Error during agent execution")
                 return f"Error: {str(e)}"
 
+        return "Agent stopped."
 
+
+# NEW: Build a CLI tool so users can iterate and actually chat from the command line.
 def main():
     parser = argparse.ArgumentParser(
         description="AI Code Assistant - A conversational AI agent with file editing capabilities"
     )
     parser.add_argument(
-        "--api-key", help="Anthropic API key (or set ANTHROPIC_API_KEY env var)"
+        "--api-key", help="OpenAI API key (or set OPENAI_API_KEY env var)"
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = args.api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print(
-            "Error: Please provide an API key via --api-key or ANTHROPIC_API_KEY environment variable"
+            "Error: Please provide an API key via --api-key or OPENAI_API_KEY environment variable"
         )
         sys.exit(1)
 
@@ -282,7 +356,7 @@ if __name__ == "__main__":
 
 
 # ```bash
-# export ANTHROPIC_API_KEY="your-api-key-here"
+# export OPENAI_API_KEY="your-api-key-here"
 # uv run runbook/06_create_interactive_cli.py
 # ```
 # Should print:
