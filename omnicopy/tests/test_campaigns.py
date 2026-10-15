@@ -5,7 +5,6 @@ from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy.pool import StaticPool
 
 from omnicopy.db.database import get_session
-
 from omnicopy.main import app
 
 
