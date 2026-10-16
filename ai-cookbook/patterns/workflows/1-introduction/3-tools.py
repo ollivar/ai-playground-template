@@ -5,6 +5,7 @@ import requests
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+# We initialize our connection to OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 """
@@ -16,6 +17,7 @@ docs: https://platform.openai.com/docs/guides/function-calling
 # --------------------------------------------------------------
 
 
+# We define a single tool and its params:
 def get_weather(latitude, longitude):
     """This is a publically available API that returns the weather for a given location."""
     response = requests.get(
@@ -27,8 +29,14 @@ def get_weather(latitude, longitude):
 
 # --------------------------------------------------------------
 # Step 1: Call model with get_weather tool defined
+"""
+The name and description give the model pointers to whether or not
+it should use the tool. 
+"""
+
 # --------------------------------------------------------------
 
+# We just have one tool (get_weather)
 tools = [
     {
         "type": "function",
@@ -49,13 +57,17 @@ tools = [
     }
 ]
 
+# We store a system_prompt variable"
 system_prompt = "You are a helpful weather assistant."
 
+# We store a messages variable that reads the system prompt and the user's input.
 messages = [
     {"role": "system", "content": system_prompt},
     {"role": "user", "content": "What's the weather like in Paris today?"},
 ]
 
+# Send a request to OpenAI client and get a response, passing in messages & tools:
+# "OpenAI, here is my conversation and a list of tools. Please determine what to do next."
 completion = client.chat.completions.create(
     model="gpt-4o",
     messages=messages,
@@ -66,7 +78,10 @@ completion = client.chat.completions.create(
 # Step 2: Model decides to call function(s)
 # --------------------------------------------------------------
 
+# Convert OpenAI client's response (all action steps) into a Python dict.
 completion.model_dump()
+
+completion.choices[0].message.model_dump()
 
 # --------------------------------------------------------------
 # Step 3: Execute get_weather function
@@ -84,6 +99,7 @@ for tool_call in completion.choices[0].message.tool_calls:
     messages.append(completion.choices[0].message)
 
     result = call_function(name, args)
+    # By appending this, we are going to be giving the LLM a lot more context
     messages.append(
         {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
     )
@@ -93,6 +109,7 @@ for tool_call in completion.choices[0].message.tool_calls:
 # --------------------------------------------------------------
 
 
+# Structured output:
 class WeatherResponse(BaseModel):
     temperature: float = Field(
         description="The current temperature in celsius for the given location."

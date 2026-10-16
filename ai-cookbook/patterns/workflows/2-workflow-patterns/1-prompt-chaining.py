@@ -1,3 +1,12 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "openai",
+#     "requests",
+#     "pydantic",
+# ]
+# ///
+
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -14,10 +23,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-model = "gpt-4o"
+model = "gpt-4.1-mini"
+
+# completion = client.chat.completions.create(
+#     model="gpt-6-luna",
+#     messages=messages,
+#     tools=tools,
+#     tool_choice="auto",
+#     reasoning_effort="none",
+# )
 
 # --------------------------------------------------------------
 # Step 1: Define the data models for each stage
+"""What I want to get back from the system"""
 # --------------------------------------------------------------
 
 
@@ -55,6 +73,7 @@ class EventConfirmation(BaseModel):
 
 # --------------------------------------------------------------
 # Step 2: Define the functions
+"""functions we need to run the pipeline chain"""
 # --------------------------------------------------------------
 
 

@@ -38,6 +38,6 @@ completion = client.beta.chat.completions.parse(
 # --------------------------------------------------------------
 
 event = completion.choices[0].message.parsed
-event.name
-event.date
-event.participants
+print(event.name)
+print(event.date)
+print(event.participants)

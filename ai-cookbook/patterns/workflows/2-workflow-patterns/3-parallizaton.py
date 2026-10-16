@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-model = "gpt-4o"
+model = "gpt-4.1-mini"
 
 # --------------------------------------------------------------
 # Step 1: Define validation models

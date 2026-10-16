@@ -15,6 +15,7 @@ docs: https://platform.openai.com/docs/guides/function-calling
 # --------------------------------------------------------------
 
 
+# search a simple knowledge base:
 def search_kb(question: str):
     """
     Load the whole knowledge base from the JSON file.

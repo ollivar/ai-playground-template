@@ -1,4 +1,3 @@
-from typing import List, Dict
 from pydantic import BaseModel, Field
 from openai import OpenAI
 import os
@@ -35,14 +34,14 @@ class OrchestratorPlan(BaseModel):
 
     topic_analysis: str = Field(description="Analysis of the blog topic")
     target_audience: str = Field(description="Intended audience for the blog")
-    sections: List[SubTask] = Field(description="List of sections to write")
+    sections: list[SubTask] = Field(description="list of sections to write")
 
 
 class SectionContent(BaseModel):
     """Content written by a worker"""
 
     content: str = Field(description="Written content for the section")
-    key_points: List[str] = Field(description="Main points covered")
+    key_points: list[str] = Field(description="Main points covered")
 
 
 class SuggestedEdits(BaseModel):
@@ -56,7 +55,7 @@ class ReviewFeedback(BaseModel):
     """Final review and suggestions"""
 
     cohesion_score: float = Field(description="How well sections flow together (0-1)")
-    suggested_edits: List[SuggestedEdits] = Field(
+    suggested_edits: list[SuggestedEdits] = Field(
         description="Suggested edits by section"
     )
     final_version: str = Field(description="Complete, polished blog post")
@@ -216,7 +215,7 @@ class BlogOrchestrator:
 
     def write_blog(
         self, topic: str, target_length: int = 1000, style: str = "informative"
-    ) -> Dict:
+    ) -> dict:
         """Process the entire blog writing task"""
         logger.info(f"Starting blog writing process for: {topic}")
 
@@ -246,7 +245,7 @@ if __name__ == "__main__":
     orchestrator = BlogOrchestrator()
 
     # Example: Technical blog post
-    topic = "The impact of AI on software development"
+    topic = "Three most fundamental things you should know how to do as a bass player in a metal band."
     result = orchestrator.write_blog(
         topic=topic, target_length=1200, style="technical but accessible"
     )
